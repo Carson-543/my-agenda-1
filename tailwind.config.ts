@@ -61,7 +61,15 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				// Task/Calendar color system
+				deadline: 'hsl(var(--color-deadline))',
+				driving: 'hsl(var(--color-driving))',
+				prep: 'hsl(var(--color-prep))',
+				task: 'hsl(var(--color-task))',
+				event: 'hsl(var(--color-event))',
+				personal: 'hsl(var(--color-personal))',
+				focus: 'hsl(var(--color-focus))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',
