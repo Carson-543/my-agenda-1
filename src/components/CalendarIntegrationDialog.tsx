@@ -31,13 +31,13 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
 
   const parseICSData = (icsContent: string) => {
     const events = [];
-    const lines = icsContent.split('\n');
+    const fixedICS = icsContent.replace(/\r?\n /g, ''); // Fix multiline fields
+    const lines = fixedICS.split('\n');
     let currentEvent: any = {};
     let inEvent = false;
 
     for (let line of lines) {
       line = line.trim();
-      
       if (line === 'BEGIN:VEVENT') {
         inEvent = true;
         currentEvent = {};
@@ -47,9 +47,11 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
         }
         inEvent = false;
       } else if (inEvent && line.includes(':')) {
-        const [key, ...valueParts] = line.split(':');
+        const [keyRaw, ...valueParts] = line.split(':');
+        const key = keyRaw.split(';')[0]; // Strip metadata like DTSTART;VALUE=DATE
         const value = valueParts.join(':');
-        currentEvent[key] = value;
+        currentEvent[keyRaw] = value;
+        currentEvent[key] ??= value;
       }
     }
 
@@ -57,25 +59,15 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
   };
 
   const formatICSDateTime = (icsDateTime: string) => {
-    // Handle different ICS datetime formats
-    if (icsDateTime.includes('T')) {
-      // Format: 20231201T120000 or 20231201T120000Z
-      const cleaned = icsDateTime.replace(/[TZ]/g, '');
-      if (cleaned.length >= 8) {
-        const year = cleaned.substring(0, 4);
-        const month = cleaned.substring(4, 6);
-        const day = cleaned.substring(6, 8);
-        const hour = cleaned.substring(8, 10) || '00';
-        const minute = cleaned.substring(10, 12) || '00';
-        const second = cleaned.substring(12, 14) || '00';
-        
-        return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
-      }
-    }
-    
-    // Fallback to current parsing
     try {
-      return new Date(icsDateTime);
+      const normalized = icsDateTime.replace(/Z$/, '').replace('T', '');
+      const year = normalized.slice(0, 4);
+      const month = normalized.slice(4, 6);
+      const day = normalized.slice(6, 8);
+      const hour = normalized.slice(8, 10) || '00';
+      const minute = normalized.slice(10, 12) || '00';
+      const second = normalized.slice(12, 14) || '00';
+      return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
     } catch {
       return new Date();
     }
@@ -83,29 +75,23 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
 
   const importFromGoogleCalendar = async () => {
     if (!googleCalendarUrl.trim()) return;
-
     setLoading(true);
+
     try {
-      // Extract calendar ID from Google Calendar public URL
       let calendarId = '';
-      
-      if (googleCalendarUrl.includes('calendar.google.com')) {
-        const urlMatch = googleCalendarUrl.match(/calendar\/embed\?src=([^&]+)/);
-        if (urlMatch) {
-          calendarId = decodeURIComponent(urlMatch[1]);
-        }
+
+      // Match src=... or cid=...
+      const match = googleCalendarUrl.match(/(?:src=|cid=)([^&]+)/);
+      if (match) {
+        calendarId = decodeURIComponent(match[1]);
       } else {
-        calendarId = googleCalendarUrl;
+        calendarId = googleCalendarUrl.trim();
       }
 
-      if (!calendarId) {
-        throw new Error('Invalid Google Calendar URL');
-      }
+      if (!calendarId) throw new Error('Invalid Google Calendar URL or ID');
 
-      // Construct ICS URL
       const icsUrl = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
-      
-      // Fetch ICS data
+
       const response = await fetch(icsUrl);
       if (!response.ok) {
         throw new Error('Failed to fetch calendar data. Make sure the calendar is public.');
@@ -113,15 +99,15 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
 
       const icsContent = await response.text();
       await processICSData(icsContent);
-      
+
       setGoogleCalendarUrl('');
       setOpen(false);
     } catch (error) {
       console.error('Error importing Google Calendar:', error);
       toast({
-        title: "Import failed",
-        description: error instanceof Error ? error.message : "Failed to import Google Calendar. Please check the URL and try again.",
-        variant: "destructive",
+        title: 'Import failed',
+        description: error instanceof Error ? error.message : 'Failed to import Google Calendar. Please check the URL and try again.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -130,8 +116,8 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
 
   const importFromICS = async () => {
     if (!icsData.trim()) return;
-
     setLoading(true);
+
     try {
       await processICSData(icsData);
       setIcsData('');
@@ -139,9 +125,9 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
     } catch (error) {
       console.error('Error importing ICS:', error);
       toast({
-        title: "Import failed",
-        description: "Failed to import ICS data. Please check the format and try again.",
-        variant: "destructive",
+        title: 'Import failed',
+        description: 'Failed to import ICS data. Please check the format and try again.',
+        variant: 'destructive',
       });
     } finally {
       setLoading(false);
@@ -150,37 +136,36 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
 
   const processICSData = async (icsContent: string) => {
     const events = parseICSData(icsContent);
-    
-    if (events.length === 0) {
-      throw new Error('No valid events found in the calendar data');
-    }
 
-    const eventsToInsert = events.map(event => {
-      const startTime = formatICSDateTime(event.DTSTART);
-      const endTime = event.DTEND ? formatICSDateTime(event.DTEND) : new Date(startTime.getTime() + 60 * 60 * 1000); // Default 1 hour
-      
+    if (events.length === 0) throw new Error('No valid events found in the calendar data');
+
+    const eventsToInsert = events.map((event) => {
+      const rawStart = event['DTSTART'] || '';
+      const rawEnd = event['DTEND'] || '';
+
+      const isAllDay = rawStart.includes('VALUE=DATE') || !rawStart.includes('T');
+      const startTime = formatICSDateTime(rawStart);
+      const endTime = rawEnd ? formatICSDateTime(rawEnd) : new Date(startTime.getTime() + 60 * 60 * 1000); // Default to 1 hr
+
       return {
         title: event.SUMMARY || 'Imported Event',
         description: event.DESCRIPTION || null,
         location: event.LOCATION || null,
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
-        all_day: !event.DTSTART?.includes('T'),
-        color_code: '#10B981', // Green for imported events
+        all_day: isAllDay,
+        color_code: '#10B981',
         user_id: user?.id,
         external_source: 'imported',
         sync_status: 'imported',
       };
     });
 
-    const { error } = await supabase
-      .from('events')
-      .insert(eventsToInsert);
-
+    const { error } = await supabase.from('events').insert(eventsToInsert);
     if (error) throw error;
 
     toast({
-      title: "Import successful",
+      title: 'Import successful',
       description: `Successfully imported ${events.length} events.`,
     });
 
@@ -189,20 +174,18 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        {children}
-      </DialogTrigger>
+      <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Import Calendar</DialogTitle>
         </DialogHeader>
-        
+
         <Tabs defaultValue="google" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="google">Google Calendar</TabsTrigger>
             <TabsTrigger value="ics">ICS File</TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="google" className="space-y-4">
             <Card>
               <CardHeader>
@@ -227,18 +210,14 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
                     The calendar must be publicly accessible. You can also paste just the calendar ID.
                   </p>
                 </div>
-                
-                <Button 
-                  onClick={importFromGoogleCalendar} 
-                  disabled={loading || !googleCalendarUrl.trim()}
-                  className="w-full"
-                >
-                  {loading ? "Importing..." : "Import from Google Calendar"}
+
+                <Button onClick={importFromGoogleCalendar} disabled={loading || !googleCalendarUrl.trim()} className="w-full">
+                  {loading ? 'Importing...' : 'Import from Google Calendar'}
                 </Button>
               </CardContent>
             </Card>
           </TabsContent>
-          
+
           <TabsContent value="ics" className="space-y-4">
             <Card>
               <CardHeader>
@@ -246,9 +225,7 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
                   <Upload className="h-5 w-5" />
                   ICS Data
                 </CardTitle>
-                <CardDescription>
-                  Paste the contents of an ICS calendar file to import events.
-                </CardDescription>
+                <CardDescription>Paste the contents of an ICS calendar file to import events.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -260,17 +237,11 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
                     placeholder="BEGIN:VCALENDAR&#10;VERSION:2.0&#10;..."
                     rows={10}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Copy and paste the entire contents of an .ics file here.
-                  </p>
+                  <p className="text-xs text-muted-foreground">Copy and paste the entire contents of an .ics file here.</p>
                 </div>
-                
-                <Button 
-                  onClick={importFromICS} 
-                  disabled={loading || !icsData.trim()}
-                  className="w-full"
-                >
-                  {loading ? "Importing..." : "Import from ICS"}
+
+                <Button onClick={importFromICS} disabled={loading || !icsData.trim()} className="w-full">
+                  {loading ? 'Importing...' : 'Import from ICS'}
                 </Button>
               </CardContent>
             </Card>
