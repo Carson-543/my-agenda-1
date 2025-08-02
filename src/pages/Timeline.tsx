@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { format, startOfDay, addHours, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { AddEventDialog } from '@/components/AddEventDialog';
+import { CalendarIntegrationDialog } from '@/components/CalendarIntegrationDialog';
 
 interface Event {
   id: string;
@@ -93,10 +95,19 @@ const Timeline = () => {
           </Button>
         </div>
         
-        <Button className="w-full mt-3" size="sm">
-          <Plus className="h-4 w-4 mr-2" />
-          Add Event
-        </Button>
+        <div className="flex gap-2 mt-3">
+          <AddEventDialog selectedDate={currentDate} onEventAdded={fetchEvents}>
+            <Button className="flex-1" size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Event
+            </Button>
+          </AddEventDialog>
+          <CalendarIntegrationDialog onEventsImported={fetchEvents}>
+            <Button variant="outline" size="sm">
+              <Calendar className="h-4 w-4" />
+            </Button>
+          </CalendarIntegrationDialog>
+        </div>
       </div>
 
       {/* Timeline */}
@@ -164,9 +175,11 @@ const Timeline = () => {
                     
                     {/* Empty slot - clickable area for new events */}
                     {hourEvents.length === 0 && (
-                      <div className="h-full min-h-[60px] rounded border-2 border-dashed border-transparent hover:border-muted-foreground/20 flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer">
-                        <Plus className="h-4 w-4" />
-                      </div>
+                      <AddEventDialog selectedDate={currentDate} selectedHour={hour.getHours()} onEventAdded={fetchEvents}>
+                        <div className="h-full min-h-[60px] rounded border-2 border-dashed border-transparent hover:border-muted-foreground/20 flex items-center justify-center text-muted-foreground/50 hover:text-muted-foreground transition-colors cursor-pointer">
+                          <Plus className="h-4 w-4" />
+                        </div>
+                      </AddEventDialog>
                     )}
                   </div>
                 </div>

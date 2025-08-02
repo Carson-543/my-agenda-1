@@ -15,9 +15,19 @@ interface PomodoroSettings {
   long_break_duration: number;
 }
 
+interface ColorPreferences {
+  deadline: string;
+  driving: string;
+  prep: string;
+  task: string;
+  event: string;
+  personal: string;
+}
+
 interface Profile {
   display_name: string;
   pomodoro_settings: PomodoroSettings;
+  color_preferences: ColorPreferences;
 }
 
 const Settings = () => {
@@ -49,6 +59,14 @@ const Settings = () => {
           break_duration: 5,
           long_break_duration: 15,
         },
+        color_preferences: (data.color_preferences as unknown as ColorPreferences) || {
+          deadline: '#EF4444',
+          driving: '#F59E0B',
+          prep: '#8B5CF6',
+          task: '#10B981',
+          event: '#3B82F6',
+          personal: '#EC4899',
+        },
       });
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -67,6 +85,7 @@ const Settings = () => {
         .update({
           display_name: profile.display_name,
           pomodoro_settings: profile.pomodoro_settings as any,
+          color_preferences: profile.color_preferences as any,
         })
         .eq('user_id', user?.id);
 
@@ -95,6 +114,18 @@ const Settings = () => {
       ...profile,
       pomodoro_settings: {
         ...profile.pomodoro_settings,
+        [key]: value,
+      },
+    });
+  };
+
+  const updateColorPreference = (key: keyof ColorPreferences, value: string) => {
+    if (!profile) return;
+    
+    setProfile({
+      ...profile,
+      color_preferences: {
+        ...profile.color_preferences,
         [key]: value,
       },
     });
@@ -197,40 +228,47 @@ const Settings = () => {
         </CardContent>
       </Card>
 
-      {/* Color System Reference */}
+      {/* Color Customization */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Palette className="h-5 w-5" />
-            Color System
+            Color Preferences
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-deadline" />
-              <span>Deadlines</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-driving" />
-              <span>Driving Time</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-prep" />
-              <span>Prep/Buffer</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-task" />
-              <span>Task Work</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-event" />
-              <span>Calendar Events</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded bg-personal" />
-              <span>Personal Time</span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {Object.entries(profile?.color_preferences || {}).map(([key, color]) => (
+              <div key={key} className="space-y-2">
+                <Label htmlFor={`color-${key}`} className="capitalize">
+                  {key === 'prep' ? 'Prep/Buffer' : 
+                   key === 'task' ? 'Task Work' : 
+                   key === 'event' ? 'Calendar Events' :
+                   key === 'personal' ? 'Personal Time' :
+                   key === 'driving' ? 'Driving Time' :
+                   'Deadlines'}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-8 h-8 rounded border-2 border-border"
+                    style={{ backgroundColor: color }}
+                  />
+                  <Input
+                    id={`color-${key}`}
+                    type="color"
+                    value={color}
+                    onChange={(e) => updateColorPreference(key as keyof ColorPreferences, e.target.value)}
+                    className="w-20 h-8 p-1 border-0"
+                  />
+                  <Input
+                    value={color}
+                    onChange={(e) => updateColorPreference(key as keyof ColorPreferences, e.target.value)}
+                    placeholder="#000000"
+                    className="flex-1"
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

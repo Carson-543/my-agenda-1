@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Plus, MoreVertical, CheckSquare } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { EditTaskDialog } from '@/components/EditTaskDialog';
 
 interface Task {
   id: string;
@@ -18,6 +19,10 @@ interface Task {
   priority: string;
   completion_percentage: number;
   created_at: string;
+  scheduled_start: string | null;
+  scheduled_end: string | null;
+  repeat_pattern: any;
+  notes: string | null;
 }
 
 interface Category {
@@ -33,6 +38,8 @@ const Tasks = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [loading, setLoading] = useState(true);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -234,7 +241,15 @@ const Tasks = () => {
                         </div>
                       )}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6"
+                      onClick={() => {
+                        setEditingTask(task);
+                        setEditDialogOpen(true);
+                      }}
+                    >
                       <MoreVertical className="h-3 w-3" />
                     </Button>
                   </div>
@@ -252,6 +267,17 @@ const Tasks = () => {
           <p className="text-muted-foreground">Add your first task to get started!</p>
         </div>
       )}
+
+      <EditTaskDialog
+        task={editingTask}
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        onTaskUpdated={() => {
+          fetchTasks();
+          setEditingTask(null);
+        }}
+        categories={categories}
+      />
     </div>
   );
 };
