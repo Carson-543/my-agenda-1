@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarIcon, Clock } from 'lucide-react';
+import { CalendarIcon, Clock, Repeat, Palette } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Calendar } from '@/components/ui/calendar';
 import {
@@ -42,6 +44,9 @@ export function AddEventDialog({ children, selectedDate, selectedHour, onEventAd
   const [endTime, setEndTime] = useState(selectedHour ? `${(selectedHour + 1).toString().padStart(2, '0')}:00` : '10:00');
   const [allDay, setAllDay] = useState(false);
   const [colorCode, setColorCode] = useState('#3B82F6');
+  const [category, setCategory] = useState('event');
+  const [recurring, setRecurring] = useState(false);
+  const [recurrencePattern, setRecurrencePattern] = useState('weekly');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,6 +74,8 @@ export function AddEventDialog({ children, selectedDate, selectedHour, onEventAd
             end_time: endDateTime.toISOString(),
             all_day: allDay,
             color_code: colorCode,
+            is_recurring: recurring,
+            recurrence_rule: recurring ? `FREQ=${recurrencePattern.toUpperCase()}` : null,
             user_id: user?.id,
           }
         ]);
@@ -87,6 +94,8 @@ export function AddEventDialog({ children, selectedDate, selectedHour, onEventAd
       setStartTime('09:00');
       setEndTime('10:00');
       setAllDay(false);
+      setRecurring(false);
+      setRecurrencePattern('weekly');
       setOpen(false);
       onEventAdded?.();
     } catch (error) {
@@ -211,21 +220,69 @@ export function AddEventDialog({ children, selectedDate, selectedHour, onEventAd
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="color">Color</Label>
-            <div className="flex gap-2">
-              {['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4'].map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className={cn(
-                    "w-8 h-8 rounded-full border-2",
-                    colorCode === color ? "border-foreground" : "border-transparent"
-                  )}
-                  style={{ backgroundColor: color }}
-                  onClick={() => setColorCode(color)}
-                />
-              ))}
+            <Label className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Color & Category
+            </Label>
+            <div className="flex items-center gap-2">
+              <div 
+                className="w-8 h-8 rounded border-2 border-border"
+                style={{ backgroundColor: colorCode }}
+              />
+              <Input
+                type="color"
+                value={colorCode}
+                onChange={(e) => setColorCode(e.target.value)}
+                className="w-20 h-8 p-1"
+              />
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger className="flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="event">General Event</SelectItem>
+                  <SelectItem value="meeting">Meeting</SelectItem>
+                  <SelectItem value="personal">Personal</SelectItem>
+                  <SelectItem value="work">Work</SelectItem>
+                  <SelectItem value="family">Family</SelectItem>
+                  <SelectItem value="social">Social</SelectItem>
+                  <SelectItem value="exercise">Exercise</SelectItem>
+                  <SelectItem value="study">Study</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+          </div>
+
+          {/* Recurring Options */}
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="recurring"
+                checked={recurring}
+                onCheckedChange={setRecurring}
+              />
+              <Label htmlFor="recurring" className="flex items-center gap-2">
+                <Repeat className="h-4 w-4" />
+                Recurring Event
+              </Label>
+            </div>
+            
+            {recurring && (
+              <div className="space-y-2">
+                <Label>Repeat Pattern</Label>
+                <Select value={recurrencePattern} onValueChange={setRecurrencePattern}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="daily">Daily</SelectItem>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="yearly">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">

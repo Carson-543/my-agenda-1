@@ -16,12 +16,18 @@ interface PomodoroSettings {
 }
 
 interface ColorPreferences {
-  deadline: string;
-  driving: string;
-  prep: string;
   task: string;
   event: string;
   personal: string;
+  prep: string;
+  driving: string;
+  deadline: string;
+  work: string;
+  meeting: string;
+  study: string;
+  exercise: string;
+  family: string;
+  social: string;
 }
 
 interface Profile {
@@ -60,12 +66,18 @@ const Settings = () => {
           long_break_duration: 15,
         },
         color_preferences: (data.color_preferences as unknown as ColorPreferences) || {
-          deadline: '#EF4444',
-          driving: '#F59E0B',
-          prep: '#8B5CF6',
-          task: '#10B981',
-          event: '#3B82F6',
-          personal: '#EC4899',
+          task: '#3B82F6',
+          event: '#10B981',
+          personal: '#F59E0B',
+          prep: '#EF4444',
+          driving: '#8B5CF6',
+          deadline: '#F97316',
+          work: '#059669',
+          meeting: '#7C3AED',
+          study: '#DC2626',
+          exercise: '#EA580C',
+          family: '#0EA5E9',
+          social: '#EC4899',
         },
       });
     } catch (error) {
@@ -237,20 +249,27 @@ const Settings = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.entries(profile?.color_preferences || {}).map(([key, color]) => (
               <div key={key} className="space-y-2">
-                <Label htmlFor={`color-${key}`} className="capitalize">
+                <Label htmlFor={`color-${key}`} className="capitalize font-medium">
                   {key === 'prep' ? 'Prep/Buffer' : 
-                   key === 'task' ? 'Task Work' : 
+                   key === 'task' ? 'General Tasks' : 
                    key === 'event' ? 'Calendar Events' :
                    key === 'personal' ? 'Personal Time' :
                    key === 'driving' ? 'Driving Time' :
-                   'Deadlines'}
+                   key === 'deadline' ? 'Deadlines' :
+                   key === 'work' ? 'Work Tasks' :
+                   key === 'meeting' ? 'Meetings' :
+                   key === 'study' ? 'Study Sessions' :
+                   key === 'exercise' ? 'Exercise' :
+                   key === 'family' ? 'Family Time' :
+                   key === 'social' ? 'Social Events' :
+                   key.charAt(0).toUpperCase() + key.slice(1)}
                 </Label>
                 <div className="flex items-center gap-2">
                   <div 
-                    className="w-8 h-8 rounded border-2 border-border"
+                    className="w-8 h-8 rounded-md border-2 border-border shadow-sm"
                     style={{ backgroundColor: color }}
                   />
                   <Input
@@ -258,17 +277,62 @@ const Settings = () => {
                     type="color"
                     value={color}
                     onChange={(e) => updateColorPreference(key as keyof ColorPreferences, e.target.value)}
-                    className="w-20 h-8 p-1 border-0"
+                    className="w-16 h-8 p-1 border rounded-md cursor-pointer"
                   />
                   <Input
                     value={color}
                     onChange={(e) => updateColorPreference(key as keyof ColorPreferences, e.target.value)}
                     placeholder="#000000"
-                    className="flex-1"
+                    className="flex-1 font-mono text-sm"
                   />
                 </div>
               </div>
             ))}
+          </div>
+          
+          <div className="mt-6 pt-4 border-t">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">Quick Actions</Label>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const randomColors = ['#EF4444', '#F97316', '#F59E0B', '#EAB308', '#84CC16', '#22C55E', '#10B981', '#14B8A6', '#06B6D4', '#0EA5E9', '#3B82F6', '#6366F1', '#8B5CF6', '#A855F7', '#D946EF', '#EC4899', '#F43F5E'];
+                    const newPreferences = { ...profile.color_preferences };
+                    Object.keys(newPreferences).forEach(key => {
+                      newPreferences[key as keyof ColorPreferences] = randomColors[Math.floor(Math.random() * randomColors.length)];
+                    });
+                    setProfile(prev => prev ? ({ ...prev, color_preferences: newPreferences }) : prev);
+                  }}
+                >
+                  Randomize
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={() => {
+                    const defaultColors = {
+                      task: '#3B82F6',
+                      event: '#10B981',
+                      personal: '#F59E0B',
+                      prep: '#EF4444',
+                      driving: '#8B5CF6',
+                      deadline: '#F97316',
+                      work: '#059669',
+                      meeting: '#7C3AED',
+                      study: '#DC2626',
+                      exercise: '#EA580C',
+                      family: '#0EA5E9',
+                      social: '#EC4899',
+                    };
+                    setProfile(prev => prev ? ({ ...prev, color_preferences: defaultColors }) : prev);
+                  }}
+                >
+                  Reset to Default
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

@@ -96,15 +96,13 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
           }
         }
       } else if (calendarUrl.includes('outlook.live.com') || calendarUrl.includes('outlook.office365.com')) {
-        // Handle Outlook calendar URLs - they usually end with .ics already
+        // Handle Outlook calendar URLs
         if (!calendarUrl.endsWith('.ics')) {
           icsUrl = calendarUrl + '/calendar.ics';
         }
       } else if (calendarUrl.includes('icloud.com')) {
         // Handle iCloud calendar URLs
-        if (!calendarUrl.includes('webcal://') && !calendarUrl.includes('https://')) {
-          icsUrl = calendarUrl.replace('webcal://', 'https://');
-        }
+        icsUrl = calendarUrl.replace('webcal://', 'https://');
       }
 
       // Handle webcal:// protocol
@@ -112,19 +110,22 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
         icsUrl = icsUrl.replace('webcal://', 'https://');
       }
 
-      const response = await fetch(icsUrl, {
-        mode: 'cors',
-        headers: {
-          'Accept': 'text/calendar, text/plain, */*'
-        }
-      });
+      // Use a CORS proxy for calendar imports since many calendar providers block direct access
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(icsUrl)}`;
+
+      const response = await fetch(proxyUrl);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch calendar: ${response.statusText}`);
       }
 
-      const icsContent = await response.text();
-      await processICSData(icsContent);
+      const data = await response.json();
+      
+      if (!data.contents) {
+        throw new Error('No calendar data received');
+      }
+
+      await processICSData(data.contents);
 
       setCalendarUrl('');
       setOpen(false);
@@ -132,7 +133,7 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
       console.error('Error importing calendar:', error);
       toast({
         title: 'Import failed',
-        description: error instanceof Error ? error.message : 'Failed to import calendar. Make sure the URL is public and accessible.',
+        description: error instanceof Error ? error.message : 'Failed to import calendar. For Google Calendar, make sure it\'s set to "Public" in sharing settings.',
         variant: 'destructive',
       });
     } finally {
@@ -220,7 +221,7 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
                   Public Calendar URL
                 </CardTitle>
                 <CardDescription>
-                  Import events from any public calendar (Google, Outlook, iCloud, or other ICS links).
+                  Import events from any public calendar (Google, Outlook, iCloud, or other ICS links). For Google Calendar, make sure it's set to "Public" in sharing settings.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
