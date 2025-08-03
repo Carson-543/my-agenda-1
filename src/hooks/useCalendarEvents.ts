@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import * as ICAL from "ical.js";
+import ICAL from "ical.js";
 
 export interface CalendarEvent {
   summary: string;

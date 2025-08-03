@@ -25,7 +25,7 @@ interface CalendarIntegrationDialogProps {
 export function CalendarIntegrationDialog({ children, onEventsImported }: CalendarIntegrationDialogProps) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
-  const [googleCalendarUrl, setGoogleCalendarUrl] = useState('');
+  const [calendarUrl, setCalendarUrl] = useState('');
   const [icsData, setIcsData] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -73,40 +73,66 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
     }
   };
 
-  const importFromGoogleCalendar = async () => {
-    if (!googleCalendarUrl.trim()) return;
+  const importFromCalendarUrl = async () => {
+    if (!calendarUrl.trim()) return;
     setLoading(true);
 
     try {
-      let calendarId = '';
-
-      // Match src=... or cid=...
-      const match = googleCalendarUrl.match(/(?:src=|cid=)([^&]+)/);
-      if (match) {
-        calendarId = decodeURIComponent(match[1]);
-      } else {
-        calendarId = googleCalendarUrl.trim();
+      let icsUrl = calendarUrl;
+      
+      // Convert various calendar URL formats to ICS format
+      if (calendarUrl.includes('calendar.google.com')) {
+        // Handle Google Calendar URLs
+        const match = calendarUrl.match(/(?:src=|cid=)([^&]+)/);
+        if (match) {
+          const calendarId = decodeURIComponent(match[1]);
+          icsUrl = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
+        } else {
+          // Try to extract calendar ID from URL path
+          const pathMatch = calendarUrl.match(/calendar\/([^\/\?]+)/);
+          if (pathMatch) {
+            const calendarId = decodeURIComponent(pathMatch[1]);
+            icsUrl = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
+          }
+        }
+      } else if (calendarUrl.includes('outlook.live.com') || calendarUrl.includes('outlook.office365.com')) {
+        // Handle Outlook calendar URLs - they usually end with .ics already
+        if (!calendarUrl.endsWith('.ics')) {
+          icsUrl = calendarUrl + '/calendar.ics';
+        }
+      } else if (calendarUrl.includes('icloud.com')) {
+        // Handle iCloud calendar URLs
+        if (!calendarUrl.includes('webcal://') && !calendarUrl.includes('https://')) {
+          icsUrl = calendarUrl.replace('webcal://', 'https://');
+        }
       }
 
-      if (!calendarId) throw new Error('Invalid Google Calendar URL or ID');
+      // Handle webcal:// protocol
+      if (icsUrl.startsWith('webcal://')) {
+        icsUrl = icsUrl.replace('webcal://', 'https://');
+      }
 
-      const icsUrl = `https://calendar.google.com/calendar/ical/${encodeURIComponent(calendarId)}/public/basic.ics`;
-
-      const response = await fetch(icsUrl);
+      const response = await fetch(icsUrl, {
+        mode: 'cors',
+        headers: {
+          'Accept': 'text/calendar, text/plain, */*'
+        }
+      });
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch calendar data. Make sure the calendar is public.');
+        throw new Error(`Failed to fetch calendar: ${response.statusText}`);
       }
 
       const icsContent = await response.text();
       await processICSData(icsContent);
 
-      setGoogleCalendarUrl('');
+      setCalendarUrl('');
       setOpen(false);
     } catch (error) {
-      console.error('Error importing Google Calendar:', error);
+      console.error('Error importing calendar:', error);
       toast({
         title: 'Import failed',
-        description: error instanceof Error ? error.message : 'Failed to import Google Calendar. Please check the URL and try again.',
+        description: error instanceof Error ? error.message : 'Failed to import calendar. Make sure the URL is public and accessible.',
         variant: 'destructive',
       });
     } finally {
@@ -180,39 +206,39 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
           <DialogTitle>Import Calendar</DialogTitle>
         </DialogHeader>
 
-        <Tabs defaultValue="google" className="w-full">
+        <Tabs defaultValue="url" className="w-full">
           <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="google">Google Calendar</TabsTrigger>
+            <TabsTrigger value="url">Calendar URL</TabsTrigger>
             <TabsTrigger value="ics">ICS File</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="google" className="space-y-4">
+          <TabsContent value="url" className="space-y-4">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Globe className="h-5 w-5" />
-                  Google Calendar URL
+                  Public Calendar URL
                 </CardTitle>
                 <CardDescription>
-                  Import events from a public Google Calendar using its public URL or calendar ID.
+                  Import events from any public calendar (Google, Outlook, iCloud, or other ICS links).
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="google-url">Calendar URL or ID</Label>
+                  <Label htmlFor="calendar-url">Calendar URL</Label>
                   <Input
-                    id="google-url"
-                    value={googleCalendarUrl}
-                    onChange={(e) => setGoogleCalendarUrl(e.target.value)}
-                    placeholder="https://calendar.google.com/calendar/embed?src=..."
+                    id="calendar-url"
+                    value={calendarUrl}
+                    onChange={(e) => setCalendarUrl(e.target.value)}
+                    placeholder="https://calendar.google.com/... or webcal://..."
                   />
                   <p className="text-xs text-muted-foreground">
-                    The calendar must be publicly accessible. You can also paste just the calendar ID.
+                    Supports Google Calendar, Outlook, iCloud, and any public ICS URL. The calendar must be publicly accessible.
                   </p>
                 </div>
 
-                <Button onClick={importFromGoogleCalendar} disabled={loading || !googleCalendarUrl.trim()} className="w-full">
-                  {loading ? 'Importing...' : 'Import from Google Calendar'}
+                <Button onClick={importFromCalendarUrl} disabled={loading || !calendarUrl.trim()} className="w-full">
+                  {loading ? 'Importing...' : 'Import Calendar'}
                 </Button>
               </CardContent>
             </Card>
