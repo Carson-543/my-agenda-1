@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { LogOut, User, Timer, Palette, Calendar } from 'lucide-react';
+import { LogOut, User, Timer, Palette, FolderOpen } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { CategoryManager } from '@/components/CategoryManager';
 
 interface PomodoroSettings {
   work_duration: number;
@@ -36,15 +37,24 @@ interface Profile {
   color_preferences: ColorPreferences;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  color_code: string;
+  sort_order: number;
+}
+
 const Settings = () => {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
       loadProfile();
+      fetchCategories();
     }
   }, [user]);
 
@@ -84,6 +94,21 @@ const Settings = () => {
       console.error('Error loading profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -334,6 +359,22 @@ const Settings = () => {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Category Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FolderOpen className="h-5 w-5" />
+            Task Categories
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CategoryManager 
+            categories={categories} 
+            onCategoriesUpdated={fetchCategories} 
+          />
         </CardContent>
       </Card>
 

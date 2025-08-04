@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { format, startOfDay, addHours, isSameDay } from 'date-fns';
-import { ChevronLeft, ChevronRight, Plus, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AddEventDialog } from '@/components/AddEventDialog';
@@ -19,10 +19,26 @@ interface Event {
   color_code: string | null;
 }
 
+interface Task {
+  id: string;
+  title: string;
+  due_date: string | null;
+  category_id: string | null;
+  is_completed: boolean;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  color_code: string;
+}
+
 const Timeline = () => {
   const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<Event[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Generate time slots (24 hours)
@@ -34,6 +50,8 @@ const Timeline = () => {
   useEffect(() => {
     if (user) {
       fetchEvents();
+      fetchTasks();
+      fetchCategories();
     }
   }, [user, currentDate]);
 
@@ -55,7 +73,43 @@ const Timeline = () => {
     } catch (error) {
       console.error('Error fetching events:', error);
     } finally {
-      setLoading(false);
+    setLoading(false);
+    }
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const startOfToday = startOfDay(currentDate);
+      const endOfToday = addHours(startOfToday, 24);
+
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('id, title, due_date, category_id, is_completed')
+        .eq('user_id', user?.id)
+        .gte('due_date', startOfToday.toISOString())
+        .lt('due_date', endOfToday.toISOString())
+        .eq('is_completed', false)
+        .order('due_date', { ascending: true });
+
+      if (error) throw error;
+      setTasks(data || []);
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('sort_order', { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error) {
+      console.error('Error fetching categories:', error);
     }
   };
 
@@ -109,6 +163,42 @@ const Timeline = () => {
           </CalendarIntegrationDialog>
         </div>
       </div>
+
+      {/* Due Tasks Today */}
+      {tasks.length > 0 && (
+        <Card className="mx-4 mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Due Today
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {tasks.map((task) => {
+              const category = categories.find(cat => cat.id === task.category_id);
+              return (
+                <div 
+                  key={task.id} 
+                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
+                >
+                  <div 
+                    className="w-3 h-3 rounded-full flex-shrink-0" 
+                    style={{ backgroundColor: category?.color_code || '#6B7280' }}
+                  />
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{task.title}</p>
+                    {task.due_date && (
+                      <p className="text-xs text-muted-foreground">
+                        Due: {format(new Date(task.due_date), 'HH:mm')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Timeline */}
       <div className="flex-1 overflow-y-auto">

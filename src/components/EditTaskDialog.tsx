@@ -40,8 +40,6 @@ interface Task {
   priority: string;
   completion_percentage: number;
   created_at: string;
-  scheduled_start: string | null;
-  scheduled_end: string | null;
   repeat_pattern: any;
   notes: string | null;
 }
@@ -74,10 +72,6 @@ export function EditTaskDialog({ task, open, onOpenChange, onTaskUpdated, catego
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [priority, setPriority] = useState('medium');
   const [dueDate, setDueDate] = useState<Date | undefined>();
-  const [scheduledStart, setScheduledStart] = useState<Date | undefined>();
-  const [scheduledEnd, setScheduledEnd] = useState<Date | undefined>();
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('10:00');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurringType, setRecurringType] = useState('daily');
   const [subtasks, setSubtasks] = useState<Subtask[]>([]);
@@ -92,17 +86,8 @@ export function EditTaskDialog({ task, open, onOpenChange, onTaskUpdated, catego
       setCategoryId(task.category_id);
       setPriority(task.priority);
       setDueDate(task.due_date ? new Date(task.due_date) : undefined);
-      setScheduledStart(task.scheduled_start ? new Date(task.scheduled_start) : undefined);
-      setScheduledEnd(task.scheduled_end ? new Date(task.scheduled_end) : undefined);
       setIsRecurring(!!task.repeat_pattern && Object.keys(task.repeat_pattern).length > 0);
       setRecurringType(task.repeat_pattern?.type || 'daily');
-      
-      if (task.scheduled_start) {
-        setStartTime(format(new Date(task.scheduled_start), 'HH:mm'));
-      }
-      if (task.scheduled_end) {
-        setEndTime(format(new Date(task.scheduled_end), 'HH:mm'));
-      }
 
       fetchSubtasks();
     }
@@ -138,10 +123,6 @@ export function EditTaskDialog({ task, open, onOpenChange, onTaskUpdated, catego
         category_id: categoryId,
         priority,
         due_date: dueDate?.toISOString() || null,
-        scheduled_start: scheduledStart && startTime ? 
-          new Date(`${format(scheduledStart, 'yyyy-MM-dd')}T${startTime}`).toISOString() : null,
-        scheduled_end: scheduledEnd && endTime ? 
-          new Date(`${format(scheduledEnd, 'yyyy-MM-dd')}T${endTime}`).toISOString() : null,
         repeat_pattern: isRecurring ? { type: recurringType } : {},
       };
 
@@ -333,92 +314,6 @@ export function EditTaskDialog({ task, open, onOpenChange, onTaskUpdated, catego
             </Popover>
           </div>
 
-          <div className="space-y-2">
-            <Label>Scheduled Time</Label>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !scheduledStart && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {scheduledStart ? format(scheduledStart, "PPP") : <span>Start date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={scheduledStart}
-                      onSelect={setScheduledStart}
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-start text-left font-normal",
-                        !scheduledEnd && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {scheduledEnd ? format(scheduledEnd, "PPP") : <span>End date</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={scheduledEnd}
-                      onSelect={setScheduledEnd}
-                      className="pointer-events-auto"
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-            </div>
-
-            {(scheduledStart || scheduledEnd) && (
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start-time">Start Time</Label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="start-time"
-                      type="time"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end-time">End Time</Label>
-                  <div className="relative">
-                    <Clock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="end-time"
-                      type="time"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
 
           <div className="space-y-2">
             <div className="flex items-center space-x-2">

@@ -4,10 +4,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Plus, MoreVertical, CheckSquare } from 'lucide-react';
+import { Plus, CheckSquare } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { EditTaskDialog } from '@/components/EditTaskDialog';
+import { TaskItem } from '@/components/TaskItem';
 
 interface Task {
   id: string;
@@ -19,8 +19,6 @@ interface Task {
   priority: string;
   completion_percentage: number;
   created_at: string;
-  scheduled_start: string | null;
-  scheduled_end: string | null;
   repeat_pattern: any;
   notes: string | null;
 }
@@ -40,6 +38,7 @@ const Tasks = () => {
   const [loading, setLoading] = useState(true);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -149,6 +148,80 @@ const Tasks = () => {
     }
   };
 
+  const deleteTask = async (taskId: string) => {
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      setTasks(tasks.filter(task => task.id !== taskId));
+      toast({
+        title: "Task deleted",
+        description: "Task has been removed",
+      });
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete task",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, task: Task) => {
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetCategoryId: string | null) => {
+    e.preventDefault();
+    
+    if (!draggedTask || draggedTask.category_id === targetCategoryId) {
+      setDraggedTask(null);
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ category_id: targetCategoryId })
+        .eq('id', draggedTask.id)
+        .eq('user_id', user?.id);
+
+      if (error) throw error;
+
+      setTasks(tasks.map(task =>
+        task.id === draggedTask.id
+          ? { ...task, category_id: targetCategoryId }
+          : task
+      ));
+
+      toast({
+        title: "Task moved",
+        description: `Task moved to ${targetCategoryId ? categories.find(c => c.id === targetCategoryId)?.name : 'Uncategorized'}`,
+      });
+    } catch (error) {
+      console.error('Error moving task:', error);
+      toast({
+        title: "Error",
+        description: "Failed to move task",
+        variant: "destructive",
+      });
+    }
+
+    setDraggedTask(null);
+  };
+
   const getCategoryById = (categoryId: string | null) => {
     return categories.find(cat => cat.id === categoryId);
   };
@@ -198,7 +271,12 @@ const Tasks = () => {
         const colorClass = category ? `border-l-4` : '';
         
         return (
-          <Card key={categoryName} className={colorClass}>
+          <Card 
+            key={categoryName} 
+            className={colorClass}
+            onDragOver={handleDragOver}
+            onDrop={(e) => handleDrop(e, category?.id || null)}
+          >
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center justify-between">
                 <span className="flex items-center gap-2">
@@ -220,39 +298,18 @@ const Tasks = () => {
                 <p className="text-muted-foreground text-sm">No tasks yet</p>
               ) : (
                 categoryTasks.map((task) => (
-                  <div key={task.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-accent">
-                    <Checkbox
-                      checked={task.is_completed}
-                      onCheckedChange={(checked) => toggleTask(task.id, checked as boolean)}
-                    />
-                    <div className="flex-1">
-                      <p className={`font-medium ${task.is_completed ? 'line-through text-muted-foreground' : ''}`}>
-                        {task.title}
-                      </p>
-                      {task.description && (
-                        <p className="text-sm text-muted-foreground">{task.description}</p>
-                      )}
-                      {task.completion_percentage > 0 && task.completion_percentage < 100 && (
-                        <div className="w-full bg-secondary rounded-full h-1 mt-1">
-                          <div 
-                            className="bg-primary h-1 rounded-full transition-all" 
-                            style={{ width: `${task.completion_percentage}%` }}
-                          />
-                        </div>
-                      )}
-                    </div>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      className="h-6 w-6"
-                      onClick={() => {
-                        setEditingTask(task);
-                        setEditDialogOpen(true);
-                      }}
-                    >
-                      <MoreVertical className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <TaskItem
+                    key={task.id}
+                    task={task}
+                    categories={categories}
+                    onToggleComplete={toggleTask}
+                    onEdit={(editTask) => {
+                      setEditingTask(editTask);
+                      setEditDialogOpen(true);
+                    }}
+                    onDelete={deleteTask}
+                    onDragStart={handleDragStart}
+                  />
                 ))
               )}
             </CardContent>
