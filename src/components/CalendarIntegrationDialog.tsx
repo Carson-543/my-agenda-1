@@ -55,8 +55,10 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
                 <div>
                   <strong>Other Calendars:</strong> Supports Outlook, iCloud, and any public .ics calendar URL.
                 </div>
-                <div className="text-xs opacity-75">
-                  For Google Calendar: Share your calendar and copy the public URL, or get the embed code and use that URL.
+                <div className="text-xs opacity-75 bg-amber-50 dark:bg-amber-950 p-2 rounded border border-amber-200 dark:border-amber-800">
+                  <strong>Important:</strong> For Google Calendar to work, you need to:
+                  <br />1. Enable the Google Calendar API in Google Cloud Console
+                  <br />2. Make sure your API key has access to the Calendar API
                 </div>
               </div>
             </div>

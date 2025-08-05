@@ -105,6 +105,10 @@ export const useExternalCalendar = (): UseExternalCalendarReturn => {
         });
         
         if (error) {
+          console.error('Google Calendar API error:', error);
+          if (error.message.includes('403') || error.message.includes('blocked')) {
+            throw new Error('Google Calendar API is not enabled. Please enable the Google Calendar API in your Google Cloud Console and ensure your API key has access to it.');
+          }
           throw new Error(`Failed to fetch Google Calendar: ${error.message}`);
         }
         
