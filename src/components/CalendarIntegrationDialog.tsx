@@ -48,9 +48,17 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
             </div>
             
             <div className="text-sm text-muted-foreground">
-              Supports Google Calendar, Outlook, iCloud, and any public .ics calendar URL.
-              <br />
-              <strong>Note:</strong> Google Calendar requires an API key for proper access. Public calendar URLs work best.
+              <div className="space-y-2">
+                <div>
+                  <strong>Google Calendar:</strong> Use any Google Calendar share URL or embed URL.
+                </div>
+                <div>
+                  <strong>Other Calendars:</strong> Supports Outlook, iCloud, and any public .ics calendar URL.
+                </div>
+                <div className="text-xs opacity-75">
+                  For Google Calendar: Share your calendar and copy the public URL, or get the embed code and use that URL.
+                </div>
+              </div>
             </div>
 
             {error && (

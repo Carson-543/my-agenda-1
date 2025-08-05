@@ -66,64 +66,118 @@ export const useExternalCalendar = (): UseExternalCalendarReturn => {
     setError(null);
     
     try {
-      const icsUrl = convertToIcsUrl(url);
-      console.log('Fetching calendar from:', icsUrl);
+      const type = detectCalendarType(url);
       
-      // Add CORS proxy for external calendars
-      const proxyUrl = icsUrl.startsWith('https://calendar.google.com') 
-        ? icsUrl 
-        : `https://api.allorigins.win/get?url=${encodeURIComponent(icsUrl)}`;
-      
-      const response = await fetch(proxyUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch calendar: ${response.status} ${response.statusText}`);
-      }
-      
-      let icsText: string;
-      
-      if (proxyUrl.includes('allorigins.win')) {
-        const data = await response.json();
-        icsText = data.contents;
+      if (type === 'google') {
+        // Extract calendar ID from Google Calendar URL
+        let calendarId = '';
+        
+        if (url.includes('/calendar/embed')) {
+          const match = url.match(/src=([^&]+)/);
+          if (match) {
+            calendarId = decodeURIComponent(match[1]);
+          }
+        } else if (url.includes('calendar.google.com/calendar/ical/')) {
+          const match = url.match(/calendar\/ical\/([^\/]+)/);
+          if (match) {
+            calendarId = decodeURIComponent(match[1]);
+          }
+        } else {
+          // Try to extract from other Google Calendar URL formats
+          const urlObj = new URL(url);
+          const pathParts = urlObj.pathname.split('/');
+          const calendarIndex = pathParts.findIndex(part => part === 'calendar');
+          if (calendarIndex !== -1 && pathParts[calendarIndex + 1]) {
+            calendarId = pathParts[calendarIndex + 1];
+          }
+        }
+        
+        if (!calendarId) {
+          throw new Error('Could not extract calendar ID from Google Calendar URL');
+        }
+        
+        console.log('Using Google Calendar API for calendar:', calendarId);
+        
+        // Use our edge function to fetch Google Calendar events
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data, error } = await supabase.functions.invoke('google-calendar', {
+          body: { calendarId }
+        });
+        
+        if (error) {
+          throw new Error(`Failed to fetch Google Calendar: ${error.message}`);
+        }
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        const parsedEvents: ExternalEvent[] = data.events.map((event: any) => ({
+          id: event.id,
+          title: event.title,
+          start: new Date(event.start),
+          end: new Date(event.end),
+          description: event.description,
+          location: event.location,
+        }));
+        
+        // Sort events by start time
+        parsedEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
+        setEvents(parsedEvents);
+        
       } else {
-        icsText = await response.text();
+        // Handle other calendar types with ICS parsing
+        const icsUrl = convertToIcsUrl(url);
+        console.log('Fetching calendar from:', icsUrl);
+        
+        // Add CORS proxy for external calendars
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(icsUrl)}`;
+        
+        const response = await fetch(proxyUrl);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch calendar: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const icsText = data.contents;
+        
+        if (!icsText || icsText.length < 50) {
+          throw new Error('Invalid or empty calendar data received');
+        }
+        
+        // Parse ICS data
+        let jcalData;
+        try {
+          jcalData = ICAL.parse(icsText);
+        } catch (parseErr) {
+          console.error('Parse error:', parseErr);
+          throw new Error('Failed to parse calendar data. The file may be corrupted or in an unsupported format.');
+        }
+        
+        const comp = new ICAL.Component(jcalData);
+        const vevents = comp.getAllSubcomponents("vevent");
+        
+        if (!vevents || vevents.length === 0) {
+          throw new Error("No events found in the calendar");
+        }
+        
+        const parsedEvents: ExternalEvent[] = vevents.map((ve) => {
+          const event = new ICAL.Event(ve);
+          return {
+            id: event.uid || `external-${Math.random()}`,
+            title: event.summary || 'Untitled Event',
+            start: event.startDate.toJSDate(),
+            end: event.endDate.toJSDate(),
+            description: event.description || undefined,
+            location: event.location || undefined,
+          };
+        });
+        
+        // Sort events by start time
+        parsedEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
+        setEvents(parsedEvents);
       }
-      
-      if (!icsText || icsText.length < 50) {
-        throw new Error('Invalid or empty calendar data received');
-      }
-      
-      // Parse ICS data
-      let jcalData;
-      try {
-        jcalData = ICAL.parse(icsText);
-      } catch (parseErr) {
-        console.error('Parse error:', parseErr);
-        throw new Error('Failed to parse calendar data. The file may be corrupted or in an unsupported format.');
-      }
-      
-      const comp = new ICAL.Component(jcalData);
-      const vevents = comp.getAllSubcomponents("vevent");
-      
-      if (!vevents || vevents.length === 0) {
-        throw new Error("No events found in the calendar");
-      }
-      
-      const parsedEvents: ExternalEvent[] = vevents.map((ve) => {
-        const event = new ICAL.Event(ve);
-        return {
-          id: event.uid || `external-${Math.random()}`,
-          title: event.summary || 'Untitled Event',
-          start: event.startDate.toJSDate(),
-          end: event.endDate.toJSDate(),
-          description: event.description || undefined,
-          location: event.location || undefined,
-        };
-      });
-      
-      // Sort events by start time
-      parsedEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
-      setEvents(parsedEvents);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
