@@ -14,6 +14,45 @@ export type Database = {
   }
   public: {
     Tables: {
+      calendars: {
+        Row: {
+          color_code: string
+          created_at: string
+          external_id: string | null
+          external_source: string
+          id: string
+          is_visible: boolean
+          name: string
+          updated_at: string
+          url: string
+          user_id: string
+        }
+        Insert: {
+          color_code?: string
+          created_at?: string
+          external_id?: string | null
+          external_source?: string
+          id?: string
+          is_visible?: boolean
+          name: string
+          updated_at?: string
+          url: string
+          user_id: string
+        }
+        Update: {
+          color_code?: string
+          created_at?: string
+          external_id?: string | null
+          external_source?: string
+          id?: string
+          is_visible?: boolean
+          name?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       categories: {
         Row: {
           color_code: string
@@ -136,6 +175,7 @@ export type Database = {
       events: {
         Row: {
           all_day: boolean | null
+          calendar_id: string | null
           color_code: string | null
           created_at: string
           description: string | null
@@ -154,6 +194,7 @@ export type Database = {
         }
         Insert: {
           all_day?: boolean | null
+          calendar_id?: string | null
           color_code?: string | null
           created_at?: string
           description?: string | null
@@ -172,6 +213,7 @@ export type Database = {
         }
         Update: {
           all_day?: boolean | null
+          calendar_id?: string | null
           color_code?: string | null
           created_at?: string
           description?: string | null
@@ -188,7 +230,15 @@ export type Database = {
           updated_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "events_calendar_id_fkey"
+            columns: ["calendar_id"]
+            isOneToOne: false
+            referencedRelation: "calendars"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pomodoro_sessions: {
         Row: {

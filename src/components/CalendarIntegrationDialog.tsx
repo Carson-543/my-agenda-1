@@ -17,11 +17,35 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
   const [open, setOpen] = useState(false);
   const [calendarUrl, setCalendarUrl] = useState('');
   const [importedData, setImportedData] = useState('');
-  const { events, loading, error, importFromUrl, clearEvents } = useExternalCalendar();
+  const [saving, setSaving] = useState(false);
+  const { events, loading, error, importFromUrl, clearEvents, saveCalendar } = useExternalCalendar();
 
   const handleImportFromUrl = async () => {
     if (calendarUrl.trim()) {
       await importFromUrl(calendarUrl);
+    }
+  };
+
+  const handleSaveCalendar = async () => {
+    setSaving(true);
+    try {
+      await saveCalendar();
+      toast({
+        title: "Success",
+        description: "Calendar saved successfully!",
+      });
+      clearEvents();
+      setCalendarUrl('');
+      onEventsImported?.();
+      setOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save calendar",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -91,6 +115,13 @@ export function CalendarIntegrationDialog({ children, onEventsImported }: Calend
                 <div className="flex gap-2">
                   <Button onClick={() => clearEvents()} variant="outline" size="sm">
                     Clear Preview
+                  </Button>
+                  <Button 
+                    onClick={handleSaveCalendar} 
+                    size="sm" 
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving...' : 'Save Calendar'}
                   </Button>
                 </div>
               </div>

@@ -14,14 +14,18 @@ interface UseExternalCalendarReturn {
   events: ExternalEvent[];
   loading: boolean;
   error: string | null;
-  importFromUrl: (url: string) => Promise<void>;
+  importFromUrl: (url: string, name?: string) => Promise<void>;
   clearEvents: () => void;
+  saveCalendar: () => Promise<void>;
 }
 
 export const useExternalCalendar = (): UseExternalCalendarReturn => {
   const [events, setEvents] = useState<ExternalEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [currentUrl, setCurrentUrl] = useState<string>('');
+  const [currentSource, setCurrentSource] = useState<string>('');
+  const [currentCalendarId, setCurrentCalendarId] = useState<string>('');
 
   const detectCalendarType = (url: string): 'google' | 'outlook' | 'icloud' | 'ics' => {
     if (url.includes('calendar.google.com')) return 'google';
@@ -61,12 +65,14 @@ export const useExternalCalendar = (): UseExternalCalendarReturn => {
     }
   };
 
-  const importFromUrl = async (url: string): Promise<void> => {
+  const importFromUrl = async (url: string, name?: string): Promise<void> => {
     setLoading(true);
     setError(null);
     
     try {
       const type = detectCalendarType(url);
+      setCurrentUrl(url);
+      setCurrentSource(type);
       
       if (type === 'google') {
         // Extract calendar ID from Google Calendar URL
@@ -95,6 +101,8 @@ export const useExternalCalendar = (): UseExternalCalendarReturn => {
         if (!calendarId) {
           throw new Error('Could not extract calendar ID from Google Calendar URL');
         }
+        
+        setCurrentCalendarId(calendarId);
         
         console.log('Using Google Calendar API for calendar:', calendarId);
         
@@ -195,6 +203,69 @@ export const useExternalCalendar = (): UseExternalCalendarReturn => {
   const clearEvents = () => {
     setEvents([]);
     setError(null);
+    setCurrentUrl('');
+    setCurrentSource('');
+    setCurrentCalendarId('');
+  };
+
+  const saveCalendar = async (): Promise<void> => {
+    if (!currentUrl || events.length === 0) {
+      throw new Error('No calendar data to save');
+    }
+
+    const { supabase } = await import('@/integrations/supabase/client');
+    
+    try {
+      // Get current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      // Save the calendar
+      const calendarName = currentSource === 'google' 
+        ? `Google Calendar (${currentCalendarId.split('@')[0]})` 
+        : `${currentSource.charAt(0).toUpperCase() + currentSource.slice(1)} Calendar`;
+
+      const { data: calendar, error: calendarError } = await supabase
+        .from('calendars')
+        .insert({
+          name: calendarName,
+          url: currentUrl,
+          external_source: currentSource,
+          external_id: currentCalendarId,
+          color_code: '#3B82F6',
+          user_id: user.id
+        })
+        .select()
+        .single();
+
+      if (calendarError) throw calendarError;
+
+      // Save the events
+      const eventInserts = events.map(event => ({
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        start_time: event.start.toISOString(),
+        end_time: event.end.toISOString(),
+        calendar_id: calendar.id,
+        external_id: event.id,
+        external_source: currentSource,
+        sync_status: 'synced',
+        user_id: user.id
+      }));
+
+      const { error: eventsError } = await supabase
+        .from('events')
+        .insert(eventInserts);
+
+      if (eventsError) throw eventsError;
+
+      console.log(`Successfully saved ${events.length} events from ${currentSource} calendar`);
+      
+    } catch (error) {
+      console.error('Error saving calendar:', error);
+      throw error;
+    }
   };
 
   return {
@@ -203,5 +274,6 @@ export const useExternalCalendar = (): UseExternalCalendarReturn => {
     error,
     importFromUrl,
     clearEvents,
+    saveCalendar,
   };
 };

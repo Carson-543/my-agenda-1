@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { format, startOfDay, addHours, isSameDay } from 'date-fns';
+import { format, startOfDay, addHours, isSameDay, endOfDay } from 'date-fns';
+import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { ChevronLeft, ChevronRight, Plus, Calendar, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,6 +41,12 @@ const Timeline = () => {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Use the calendar events hook to get external calendar events
+  const { events: calendarEvents, loading: calendarLoading } = useCalendarEvents(
+    startOfDay(currentDate), 
+    endOfDay(currentDate)
+  );
 
   // Generate time slots (24 hours)
   const timeSlots = Array.from({ length: 24 }, (_, i) => {
@@ -200,9 +207,45 @@ const Timeline = () => {
         </Card>
       )}
 
+      {/* External Calendar Events */}
+      {calendarEvents.length > 0 && (
+        <Card className="mx-4 mb-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Calendar className="h-5 w-5" />
+              External Calendar Events
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {calendarEvents.map((event) => (
+              <div 
+                key={event.id}
+                className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
+              >
+                <div 
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: event.color_code || '#10B981' }}
+                />
+                <div className="flex-1">
+                  <p className="font-medium text-sm">{event.title}</p>
+                  {event.calendar && (
+                    <p className="text-xs text-muted-foreground">
+                      {event.calendar.name}
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(event.start_time), 'HH:mm')}
+                </p>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Timeline */}
       <div className="flex-1 overflow-y-auto">
-        {loading ? (
+        {loading || calendarLoading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-muted-foreground">Loading timeline...</div>
           </div>

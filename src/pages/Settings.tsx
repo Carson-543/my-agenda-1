@@ -6,9 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { LogOut, User, Timer, Palette, FolderOpen } from 'lucide-react';
+import { LogOut, User, Timer, Palette, FolderOpen, Calendar } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import { CategoryManager } from '@/components/CategoryManager';
+import { CalendarManager } from '@/components/CalendarManager';
 
 interface PomodoroSettings {
   work_duration: number;
@@ -371,10 +372,20 @@ const Settings = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <CategoryManager 
-            categories={categories} 
-            onCategoriesUpdated={fetchCategories} 
-          />
+          <CategoryManager categories={categories} onCategoriesUpdated={fetchCategories} />
+        </CardContent>
+      </Card>
+
+      {/* Calendar Management */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Calendar className="h-5 w-5" />
+            Imported Calendars
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CalendarManager />
         </CardContent>
       </Card>
 

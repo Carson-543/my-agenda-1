@@ -1,64 +1,87 @@
-import { useState, useEffect } from "react";
-import ICAL from "ical.js";
+import { useState, useEffect } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 export interface CalendarEvent {
-  summary: string;
-  location?: string;
+  id: string;
+  title: string;
   description?: string;
-  start: Date;
-  end: Date;
+  location?: string;
+  start_time: string;
+  end_time: string;
+  color_code?: string;
+  calendar_id?: string;
+  external_source?: string;
+  calendar?: {
+    name: string;
+    color_code: string;
+    is_visible: boolean;
+  };
 }
 
-export function useCalendarEvents(icsUrl: string) {
+export function useCalendarEvents(startDate?: Date, endDate?: Date) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEffect(() => {
-    async function fetchCalendar() {
-      try {
-        const res = await fetch(icsUrl);
-        const icsText = await res.text();
-
-        // DEBUG: show raw ICS text in an alert if parsing fails
-        let jcalData;
-        try {
-          jcalData = ICAL.parse(icsText);
-        } catch (parseErr) {
-          alert("Failed to parse ICS file. Raw ICS:\n\n" + icsText);
-          throw parseErr;
-        }
-
-        const comp = new ICAL.Component(jcalData);
-        const vevents = comp.getAllSubcomponents("vevent");
-
-        if (!vevents || vevents.length === 0) {
-          alert("No events found in calendar:\n\n" + icsText);
-          throw new Error("No valid events found in the calendar data");
-        }
-
-        const parsedEvents = vevents.map((ve) => {
-          const event = new ICAL.Event(ve);
-          return {
-            summary: event.summary,
-            location: event.location,
-            description: event.description,
-            start: event.startDate.toJSDate(),
-            end: event.endDate.toJSDate(),
-          };
-        });
-
-        parsedEvents.sort((a, b) => a.start.getTime() - b.start.getTime());
-        setEvents(parsedEvents);
-      } catch (error) {
-        console.error("Failed to fetch calendar events", error);
-        alert("Error fetching calendar:\n" + error.message);
-      } finally {
-        setLoading(false);
-      }
+    if (user) {
+      fetchEvents();
     }
+  }, [user, startDate, endDate]);
 
-    fetchCalendar();
-  }, [icsUrl]);
+  const fetchEvents = async () => {
+    try {
+      setLoading(true);
+      setError(null);
 
-  return { events, loading };
+      let query = supabase
+        .from('events')
+        .select(`
+          *,
+          calendars!inner(
+            name,
+            color_code,
+            is_visible
+          )
+        `)
+        .eq('user_id', user?.id)
+        .eq('calendars.is_visible', true);
+
+      if (startDate) {
+        query = query.gte('start_time', startDate.toISOString());
+      }
+      
+      if (endDate) {
+        query = query.lte('start_time', endDate.toISOString());
+      }
+
+      const { data, error } = await query.order('start_time', { ascending: true });
+
+      if (error) throw error;
+
+      const formattedEvents: CalendarEvent[] = (data || []).map(event => ({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        start_time: event.start_time,
+        end_time: event.end_time,
+        color_code: event.color_code || event.calendars?.color_code,
+        calendar_id: event.calendar_id,
+        external_source: event.external_source,
+        calendar: event.calendars
+      }));
+
+      setEvents(formattedEvents);
+    } catch (err) {
+      console.error('Error fetching calendar events:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch events');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return { events, loading, error, refetch: fetchEvents };
 }
